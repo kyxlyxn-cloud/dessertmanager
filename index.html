@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>카페 디저트 정밀 관리 시스템</title>
+    <style>
+        :root { --main-brown: #5d4037; --bg-color: #fdfaf9; --point-yellow: #fff9c4; }
+        body { font-family: 'Pretendard', sans-serif; background-color: var(--bg-color); color: #333; padding: 15px; line-height: 1.5; }
+        .container { max-width: 800px; margin: 0 auto; }
+        h1 { text-align: center; color: var(--main-brown); font-size: 1.5rem; margin-bottom: 20px; border-bottom: 2px solid var(--main-brown); padding-bottom: 10px; }
+        
+        .section { background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
+        h3 { margin-top: 0; color: #8d6e63; font-size: 1.1rem; border-left: 4px solid var(--main-brown); padding-left: 10px; margin-bottom: 15px; }
+
+        .item-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid #eee; }
+        .item-row:last-child { border-bottom: none; }
+        .item-name { font-size: 0.9rem; font-weight: 500; }
+        .input-group { display: flex; align-items: center; justify-content: center; gap: 5px; }
+        input[type="number"] { width: 45px; padding: 6px; border: 1px solid #ccc; border-radius: 6px; text-align: center; font-size: 0.9rem; }
+        .label-text { font-size: 0.75rem; color: #888; margin-right: 2px; }
+
+        .btn-calc { display: block; width: 100%; padding: 16px; background: var(--main-brown); color: white; border: none; border-radius: 10px; font-size: 1.1rem; font-weight: bold; cursor: pointer; margin: 25px 0; box-shadow: 0 4px 0 #3e2723; }
+        .btn-calc:active { transform: translateY(2px); box-shadow: 0 2px 0 #3e2723; }
+
+        .post-it-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 15px; }
+        .post-it { background: var(--point-yellow); padding: 18px; border-radius: 2px; box-shadow: 3px 3px 8px rgba(0,0,0,0.1); border-left: 5px solid #fbc02d; position: relative; }
+        .post-it h4 { margin: 0 0 12px 0; font-size: 1rem; color: #e65100; border-bottom: 1px dashed #fbc02d; padding-bottom: 5px; }
+        .post-it ul { list-style: none; padding: 0; margin: 0; }
+        .post-it li { font-size: 0.9rem; margin-bottom: 6px; display: flex; justify-content: space-between; border-bottom: 1px solid rgba(0,0,0,0.03); }
+        .count-badge { background: rgba(0,0,0,0.05); padding: 0 5px; border-radius: 4px; font-weight: bold; }
+        .status-tag { font-size: 0.7rem; padding: 1px 4px; border-radius: 3px; color: white; margin-right: 4px; }
+        .tag-new { background: #4caf50; }
+        .tag-old { background: #ff9800; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🥐 디저트 품목별 오픈 관리</h1>
+
+    <div class="section">
+        <h3>📍 당일 판매 (오늘 마감)</h3>
+        <div id="group-1"></div>
+    </div>
+
+    <div class="section">
+        <h3>📍 2일 판매 (내일까지)</h3>
+        <div id="group-2"></div>
+    </div>
+
+    <div class="section">
+        <h3>📍 3일 판매 (모레까지)</h3>
+        <div id="group-3"></div>
+    </div>
+
+    <button class="btn-calc" onclick="generateReport()">포스트잇 양식 생성하기</button>
+
+    <div class="post-it-grid" id="reportArea"></div>
+</div>
+
+<script>
+    // 품목 데이터 구성
+    const menuConfig = [
+        { group: 1, items: ["휘낭시에(플레인)", "휘낭시에(초코)", "휘낭시에(아몬드)", "플레인 스콘", "에그타르트"] },
+        { group: 2, items: ["마들렌(레몬)", "마들렌(초코)", "호두 브라우니", "아몬드 타르트", "르뱅 쿠키", "스모어(황치즈)", "스모어(카카오)"] },
+        { group: 3, items: ["파운드(레몬)", "파운드(얼그레이)", "파운드(흑임자)", "파운드(황치즈)", "파운드(초코마블)", "파운드(리치초코)"] }
+    ];
+
+    // 화면에 입력칸 생성
+    menuConfig.forEach(config => {
+        const container = document.getElementById(`group-${config.group}`);
+        config.items.forEach((name, idx) => {
+            const id = `item-${config.group}-${idx}`;
+            container.innerHTML += `
+                <div class="item-row">
+                    <div class="item-name">${name}</div>
+                    <div class="input-group">
+                        <span class="label-text">재고</span>
+                        <input type="number" id="${id}-old" value="0" min="0">
+                    </div>
+                    <div class="input-group">
+                        <span class="label-text">신규</span>
+                        <input type="number" id="${id}-new" value="0" min="0">
+                    </div>
+                </div>
+            `;
+        });
+    });
+
+    function getDayStr(add) {
+        const d = new Date();
+        d.setDate(d.getDate() + add);
+        return `${d.getMonth() + 1}/${d.getDate()}(${['일','월','화','수','목','금','토'][d.getDay()]})`;
+    }
+
+    function generateReport() {
+        const reportArea = document.getElementById('reportArea');
+        reportArea.innerHTML = '';
+        
+        let p1_list = ""; // 오늘까지
+        let p2_list = ""; // 내일까지
+        let p3_list = ""; // 모레까지
+
+        menuConfig.forEach(config => {
+            config.items.forEach((name, idx) => {
+                const oldVal = parseInt(document.getElementById(`item-${config.group}-${idx}-old`).value) || 0;
+                const newVal = parseInt(document.getElementById(`item-${config.group}-${idx}-new`).value) || 0;
+
+                // 1일 판매군
+                if (config.group === 1) {
+                    if (newVal > 0) p1_list += `<li><span><b class="status-tag tag-new">신</b>${name}</span><span class="count-badge">${newVal}</span></li>`;
+                }
+                // 2일 판매군
+                if (config.group === 2) {
+                    if (oldVal > 0) p1_list += `<li><span><b class="status-tag tag-old">재</b>${name}</span><span class="count-badge">${oldVal}</span></li>`;
+                    if (newVal > 0) p2_list += `<li><span><b class="status-tag tag-new">신</b>${name}</span><span class="count-badge">${newVal}</span></li>`;
+                }
+                // 3일 판매군
+                if (config.group === 3) {
+                    // 3일 판매군은 재고가 어제 들어온건지 그저께 들어온건지 구분 필요하지만, 
+                    // 사용자가 재고칸에 적은 것은 '오늘 무조건 소진'해야 할 것(포스트잇1)으로 가정하거나 
+                    // 관리 편의상 포스트잇2(내일까지)로 분류합니다.
+                    if (oldVal > 0) p2_list += `<li><span><b class="status-tag tag-old">재</b>${name}</span><span class="count-badge">${oldVal}</span></li>`;
+                    if (newVal > 0) p3_list += `<li><span><b class="status-tag tag-new">신</b>${name}</span><span class="count-badge">${newVal}</span></li>`;
+                }
+            });
+        });
+
+        const postIts = [
+            { title: `${getDayStr(0)} 까지 (오늘마감)`, content: p1_list },
+            { title: `${getDayStr(1)} 까지`, content: p2_list },
+            { title: `${getDayStr(2)} 까지`, content: p3_list }
+        ];
+
+        postIts.forEach(p => {
+            if(p.content) {
+                reportArea.innerHTML += `
+                    <div class="post-it">
+                        <h4>📌 ${p.title}</h4>
+                        <ul>${p.content}</ul>
+                    </div>
+                `;
+            }
+        });
+    }
+</script>
+
+</body>
+</html>
